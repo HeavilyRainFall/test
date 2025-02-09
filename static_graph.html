@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>统计分布可视化学习工具</title>
+    <!-- 引入 Plot.ly 用于绘图 -->
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <!-- 引入 Bootstrap 用于样式 -->
+    <link href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/5.1.3/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+        }
+        .parameter-group {
+            margin: 15px 0;
+        }
+        #plotDiv {
+            width: 100%;
+            height: 500px;
+        }
+        .distribution-info {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+    </style>
+    <script>
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$']],
+                packages: ['base', 'ams', 'noerrors', 'noundefined']
+            },
+            svg: {
+                fontCache: 'global'
+            },
+            startup: {
+                typeset: false
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">统计分布可视化学习工具</h1>
+        
+        <div class="row">
+            <!-- 左侧控制面板 -->
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">分布选择</h5>
+                        <select id="distributionSelect" class="form-select mb-3">
+                            <option value="normal">正态分布(高斯分布)</option>
+                            <option value="t">t分布</option>
+                            <option value="f">F分布</option>
+                            <option value="binomial">二项分布</option>
+                            <option value="poisson">泊松分布</option>
+                            <option value="geometric">几何分布</option>
+                            <option value="chi">卡方分布</option>
+                        </select>
+
+                        <div id="parameters" class="parameter-group">
+                            <!-- 参数控制区域将通过 JavaScript 动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧图表和说明 -->
+            <div class="col-md-9">
+                <div id="plotDiv"></div>
+                <div id="distributionInfo" class="distribution-info">
+                    <!-- 分布说明将通过 JavaScript 动态生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 分布参数配置
+        const distributionConfigs = {
+            normal: {
+                params: [
+                    {id: 'mu1', label: '均值 1 (μ)', min: -5, max: 5, value: 0, step: 0.1},
+                    {id: 'sigma1', label: '标准差 1 (σ)', min: 0.1, max: 5, value: 1, step: 0.1},
+                    {id: 'mu2', label: '均值 2 (μ)', min: -5, max: 5, value: 2, step: 0.1},
+                    {id: 'sigma2', label: '标准差 2 (σ)', min: 0.1, max: 5, value: 2, step: 0.1}
+                ],
+                info: function(params) {
+                    const mu1 = params.mu1;
+                    const sigma1 = params.sigma1;
+                    const mu2 = params.mu2;
+                    const sigma2 = params.sigma2;
+                    
+                    return `
+                        <div class="distribution-explanation">
+                            <h4>正态分布 (Normal Distribution)</h4>
+                            
+                            <div class="theory-section">
+                                <h5>基本概念</h5>
+                                <p>正态分布是自然界中最常见的概率分布，其图像呈钟形，关于均值对称。也称为高斯分布。</p>
+                                
+                                <h5>概率密度函数</h5>
+                                <div class="formula-block">
+                                    <p>对于参数为 μ 和 σ 的正态分布，其概率密度函数为：</p>
+                                    <div class="formula">
+                                        f(x) = 1/(σ√(2π)) * e^(-(x-μ)²/(2σ²))
+                                    </div>
+                                    <p>其中：</p>
+                                    <ul>
+                                        <li>μ 是均值参数，决定分布的中心位置</li>
+                                        <li>σ 是标准差参数，决定分布的展开程度</li>
+                                        <li>e 是自然对数的底数，约等于 2.71828</li>
+                                        <li>π 是圆周率，约等于 3.14159</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="parameters-section">
+                                <h5>当前参数值</h5>
+                                <div class="parameter-explanation">
+                                    <ul>
+                                        <li>曲线1: μ = ${mu1}, σ = ${sigma1}</li>
+                                        <li>曲线2: μ = ${mu2}, σ = ${sigma2}</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="properties-section">
+                                <h5>重要性质</h5>
+                                <ul>
+                                    <li>对称性：曲线关于 x = μ 对称</li>
+                                    <li>单峰性：在 x = μ 处取最大值</li>
+                                    <li>概率区间：
+                                        <ul>
+                                            <li>约68%的数据落在 [μ-σ, μ+σ] 区间</li>
+                                            <li>约95%的数据落在 [μ-2σ, μ+2σ] 区间</li>
+                                            <li>约99.7%的数据落在 [μ-3σ, μ+3σ] 区间</li>
+                                        </ul>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div class="applications-section">
+                                <h5>应用场景</h5>
+                                <ul>
+                                    <li>身高、体重等生理指标的分布</li>
+                                    <li>测量误差的分布</li>
+                                    <li>大量独立随机变量和的分布（中心极限定理）</li>
+                                    <li>质量控制中的产品参数分布</li>
+                                    <li>金融市场中的收益率分布</li>
+                                </ul>
+                            </div>
+
+                            <div class="interactive-tips">
+                                <h5>交互提示</h5>
+                                <ul>
+                                    <li>调整均值 μ：观察曲线的水平移动</li>
+                                    <li>调整标准差 σ：观察曲线的胖瘦变化</li>
+                                    <li>尝试设置相同的 μ 但不同的 σ，观察分布的展开程度</li>
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                }
+            },
+            t: {
+                params: [
+                    {id: 'df1', label: '自由度 1', min: 1, max: 30, value: 5, step: 1},
+                    {id: 'df2', label: '自由度 2', min: 1, max: 30, value: 15, step: 1}
+                ],
+                info: function(params) {
+                    const df1 = params.df1;
+                    const df2 = params.df2;
+                    
+                    return `
+                        <div class="distribution-explanation">
+                            <h4>t分布 (Student's t-Distribution)</h4>
+                            
+                            <div class="theory-section">
+                                <h5>基本概念</h5>
+                                <p>t分布是在样本量较小且总体标准差未知时进行统计推断的重要工具。当自由度增大时，t分布趋近于标准正态分布。</p>
+                                
+                                <h5>概率密度函数</h5>
+                                <div class="formula-block">
+                                    <p>对于自由度为 ν 的t分布，其概率密度函数为：</p>
+                                    <div class="formula">
+                                        f(x) = [Γ((ν+1)/2)] / [√(νπ)Γ(ν/2)] * (1 + x²/ν)^(-(ν+1)/2)
+                                    </div>
+                                    <p>其中：</p>
+                                    <ul>
+                                        <li>Γ(x) 是伽马函数</li>
+                                        <li>ν 是自由度</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="parameters-section">
+                                <h5>当前参数值</h5>
+                                <div class="parameter-explanation">
+                                    <ul>
+                                        <li>曲线1: 自由度 ν = ${df1}</li>
+                                        <li>曲线2: 自由度 ν = ${df2}</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="properties-section">
+                                <h5>重要性质</h5>
+                                <ul>
+                                    <li>对称性：曲线关于 x = 0 对称</li>
+                                    <li>尾部特征：比正态分布有更重的尾部</li>
+                                    <li>极限性质：当 ν → ∞ 时，t分布趋近于标准正态分布</li>
+                                </ul>
+                            </div>
+
+                            <div class="applications-section">
+                                <h5>应用场景</h5>
+                                <ul>
+                                    <li>小样本均值检验：用于检验样本均值与总体均值是否有显著差异</li>
+                                    <li>置信区间构建：构建总体均值的置信区间</li>
+                                    <li>回归分析：用于检验回归系数的显著性</li>
+                                </ul>
+                            </div>
+
+                            <div class="interactive-tips">
+                                <h5>交互提示</h5>
+                                <ul>
+                                    <li>尝试将自由度设置为较小值（如1-5），观察尾部变化</li>
+                                    <li>尝试将自由度设置为较大值（如30），观察其接近正态分布的过程</li>
+                                    <li>对比两条曲线，理解自由度对分布形状的影响</li>
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                }
+            },
+            chi: {
+                params: [
+                    {id: 'k1', label: '自由度 1', min: 1, max: 20, value: 3, step: 1},
+                    {id: 'k2', label: '自由度 2', min: 1, max: 20, value: 8, step: 1}
+                ],
+                info: function(params) {
+                    const k1 = params.k1;
+                    const k2 = params.k2;
+                    
+                    return `
+                        <div class="distribution-explanation">
+                            <h4>卡方分布 (Chi-square Distribution)</h4>
+                            
+                            <div class="theory-section">
+                                <h5>基本概念</h5>
+                                <p>卡方分布是 k 个独立的标准正态随机变量的平方和的分布。是一种重要的非负连续型概率分布。</p>
+                                
+                                <h5>概率密度函数</h5>
+                                <div class="formula-block">
+                                    <p>对于自由度为 k 的卡方分布，其概率密度函数为：</p>
+                                    <div class="formula">
+                                        f(x) = x^(k/2-1) * e^(-x/2) / (2^(k/2) * Γ(k/2))
+                                    </div>
+                                    <p>其中：</p>
+                                    <ul>
+                                        <li>k 是自由度参数</li>
+                                        <li>Γ(x) 是伽马函数</li>
+                                        <li>x ≥ 0（卡方分布只在非负实数上有定义）</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="parameters-section">
+                                <h5>当前参数值</h5>
+                                <div class="parameter-explanation">
+                                    <ul>
+                                        <li>曲线1: k = ${k1}</li>
+                                        <li>曲线2: k = ${k2}</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <div class="properties-section">
+                                <h5>重要性质</h5>
+                                <ul>
+                                    <li>非负性：x ≥ 0</li>
+                                    <li>期望值：E(X) = k</li>
+                                    <li>方差：Var(X) = 2k</li>
+                                    <li>当 k = 2 时，卡方分布等价于指数分布</li>
+                                </ul>
+                            </div>
+
+                            <div class="applications-section">
+                                <h5>应用场景</h5>
+                                <ul>
+                                    <li>独立性检验：检验两个分类变量是否相互独立</li>
+                                    <li>拟合优度检验：检验实际数据与理论分布的吻合程度</li>
+                                    <li>方差的区间估计</li>
+                                    <li>质量控制中的过程监控</li>
+                                </ul>
+                            </div>
+
+                            <div class="interactive-tips">
+                                <h5>交互提示</h5>
+                                <ul>
+                                    <li>尝试较小的自由度值（如1-3），观察分布的高度偏斜性</li>
+                                    <li>尝试较大的自由度值，观察分布逐渐变得对称</li>
+                                    <li>注意分布始终在x轴正半轴上</li>
+                                </ul>
+                            </div>
+                        </div>
+                    `;
+                }
+            },
+            f: {
+                params: [
+                    {id: 'df11', label: '分子自由度 1', min: 1, max: 30, value: 5, step: 1},
+                    {id: 'df21', label: '分母自由度 1', min: 1, max: 30, value: 10, step: 1},
+                    {id: 'df12', label: '分子自由度 2', min: 1, max: 30, value: 15, step: 1},
+                    {id: 'df22', label: '分母自由度 2', min: 1, max: 30, value: 20, step: 1}
+                ],
+                info: `
+                    <h4>F分布说明</h4>
+                    <p>F分布是两个独立的卡方分布之比，常用于方差分析。</p>
+                    <ul>
+                        <li>分子自由度和分母自由度共同决定分布形状</li>
+                        <li>常用于ANOVA分析和方差比较</li>
+                    </ul>
+                `
+            },
+            binomial: {
+                params: [
+                    {id: 'n1', label: '试验次数 1 (n)', min: 1, max: 50, value: 20, step: 1},
+                    {id: 'p1', label: '成功概率 1 (p)', min: 0, max: 1, value: 0.5, step: 0.01},
+                    {id: 'n2', label: '试验次数 2 (n)', min: 1, max: 50, value: 30, step: 1},
+                    {id: 'p2', label: '成功概率 2 (p)', min: 0, max: 1, value: 0.7, step: 0.01}
+                ],
+                info: `
+                    <h4>二项分布说明</h4>
+                    <p>二项分布描述n次独立重复试验中成功次数的概率分布。</p>
+                    <ul>
+                        <li>n: 试验总次数</li>
+                        <li>p: 每次试验成功的概率</li>
+                    </ul>
+                `
+            },
+            poisson: {
+                params: [
+                    {id: 'lambda1', label: '参数 1 (λ)', min: 0.1, max: 20, value: 5, step: 0.1},
+                    {id: 'lambda2', label: '参数 2 (λ)', min: 0.1, max: 20, value: 10, step: 0.1}
+                ],
+                info: `
+                    <h4>泊松分布说明</h4>
+                    <p>泊松分布描述单位时间内随机事件发生次数的概率分布。</p>
+                    <ul>
+                        <li>λ: 单位时间内平均发生次数</li>
+                    </ul>
+                `
+            },
+            geometric: {
+                params: [
+                    {id: 'p1', label: '成功概率 1 (p)', min: 0.01, max: 1, value: 0.3, step: 0.01},
+                    {id: 'p2', label: '成功概率 2 (p)', min: 0.01, max: 1, value: 0.7, step: 0.01}
+                ],
+                info: `
+                    <h4>几何分布说明</h4>
+                    <p>几何分布描述首次成功所需要的试验次数的概率分布。</p>
+                    <ul>
+                        <li>p: 每次试验成功的概率</li>
+                    </ul>
+                `
+            }
+        };
+
+        // 生成参数控制器
+        function generateParameters(distribution) {
+            const config = distributionConfigs[distribution];
+            const container = document.getElementById('parameters');
+            container.innerHTML = '';
+
+            config.params.forEach(param => {
+                const div = document.createElement('div');
+                div.className = 'mb-3';
+                div.innerHTML = `
+                    <label for="${param.id}" class="form-label">${param.label}</label>
+                    <input type="range" class="form-range" 
+                           id="${param.id}" 
+                           min="${param.min}" 
+                           max="${param.max}" 
+                           step="${param.step}" 
+                           value="${param.value}"
+                           oninput="updateParamValue('${param.id}', this.value); updatePlot()">
+                    <small class="text-muted" id="${param.id}-value">${param.value}</small>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // 更新图表
+        function updatePlot() {
+            const distribution = document.getElementById('distributionSelect').value;
+            
+            // 获取当前参数值
+            const params = {};
+            distributionConfigs[distribution].params.forEach(param => {
+                params[param.id] = parseFloat(document.getElementById(param.id).value);
+            });
+
+            // 更新说明文本，传入当前参数
+            const info = distributionConfigs[distribution].info;
+            if (typeof info === 'function') {
+                document.getElementById('distributionInfo').innerHTML = info(params);
+            } else {
+                document.getElementById('distributionInfo').innerHTML = info;
+            }
+            
+            // 触发 MathJax 重新渲染
+            if (window.MathJax) {
+                MathJax.typesetPromise && MathJax.typesetPromise();
+            }
+
+            let data = [];
+            let layout = {
+                xaxis: {title: 'x'},
+                yaxis: {title: '概率密度'},
+                showlegend: true
+            };
+
+            switch(distribution) {
+                case 'normal':
+                    const mu1 = params.mu1;
+                    const sigma1 = params.sigma1;
+                    const mu2 = params.mu2;
+                    const sigma2 = params.sigma2;
+
+                    const x = Array.from({length: 100}, (_, i) => -5 + i * 0.1);
+                    data = [
+                        {
+                            x: x,
+                            y: x.map(x => (1 / (sigma1 * Math.sqrt(2 * Math.PI))) * 
+                                Math.exp(-0.5 * Math.pow((x - mu1) / sigma1, 2))),
+                            type: 'scatter',
+                            name: `分布1 (μ=${mu1}, σ=${sigma1})`
+                        },
+                        {
+                            x: x,
+                            y: x.map(x => (1 / (sigma2 * Math.sqrt(2 * Math.PI))) * 
+                                Math.exp(-0.5 * Math.pow((x - mu2) / sigma2, 2))),
+                            type: 'scatter',
+                            name: `分布2 (μ=${mu2}, σ=${sigma2})`
+                        }
+                    ];
+                    layout.title = '正态分布对比';
+                    break;
+
+                case 't':
+                    const df1 = params.df1;
+                    const df2 = params.df2;
+                    const x_t = Array.from({length: 200}, (_, i) => -4 + i * 0.04);
+                    
+                    data = [
+                        {
+                            x: x_t,
+                            y: x_t.map(x => {
+                                const c1 = gamma((df1 + 1) / 2) / (Math.sqrt(df1 * Math.PI) * gamma(df1 / 2));
+                                return c1 * Math.pow(1 + (x * x) / df1, -(df1 + 1) / 2);
+                            }),
+                            type: 'scatter',
+                            name: `t分布1 (df=${df1})`
+                        },
+                        {
+                            x: x_t,
+                            y: x_t.map(x => {
+                                const c2 = gamma((df2 + 1) / 2) / (Math.sqrt(df2 * Math.PI) * gamma(df2 / 2));
+                                return c2 * Math.pow(1 + (x * x) / df2, -(df2 + 1) / 2);
+                            }),
+                            type: 'scatter',
+                            name: `t分布2 (df=${df2})`
+                        }
+                    ];
+                    layout.title = 't分布对比';
+                    break;
+
+                case 'chi':
+                    const k1 = params.k1;
+                    const k2 = params.k2;
+                    const x_chi = Array.from({length: 200}, (_, i) => 0.1 + i * 0.1);
+                    
+                    data = [
+                        {
+                            x: x_chi,
+                            y: x_chi.map(x => Math.pow(x, k1/2 - 1) * Math.exp(-x/2) / 
+                                (Math.pow(2, k1/2) * gamma(k1/2))),
+                            type: 'scatter',
+                            name: `卡方分布1 (k=${k1})`
+                        },
+                        {
+                            x: x_chi,
+                            y: x_chi.map(x => Math.pow(x, k2/2 - 1) * Math.exp(-x/2) / 
+                                (Math.pow(2, k2/2) * gamma(k2/2))),
+                            type: 'scatter',
+                            name: `卡方分布2 (k=${k2})`
+                        }
+                    ];
+                    layout.title = '卡方分布对比';
+                    break;
+
+                case 'f':
+                    const df11 = params.df11;
+                    const df21 = params.df21;
+                    const df12 = params.df12;
+                    const df22 = params.df22;
+                    const x_f = Array.from({length: 200}, (_, i) => 0.1 + i * 0.05);
+                    
+                    data = [
+                        {
+                            x: x_f,
+                            y: x_f.map(x => {
+                                const c1 = Math.sqrt(Math.pow(df11 * x, df11) * Math.pow(df21, df21) / 
+                                    Math.pow(df11 * x + df21, df11 + df21)) / 
+                                    (x * beta(df11/2, df21/2));
+                                return c1;
+                            }),
+                            type: 'scatter',
+                            name: `F分布1 (df1=${df11}, df2=${df21})`
+                        },
+                        {
+                            x: x_f,
+                            y: x_f.map(x => {
+                                const c2 = Math.sqrt(Math.pow(df12 * x, df12) * Math.pow(df22, df22) / 
+                                    Math.pow(df12 * x + df22, df12 + df22)) / 
+                                    (x * beta(df12/2, df22/2));
+                                return c2;
+                            }),
+                            type: 'scatter',
+                            name: `F分布2 (df1=${df12}, df2=${df22})`
+                        }
+                    ];
+                    layout.title = 'F分布对比';
+                    break;
+
+                case 'binomial':
+                    const n1 = params.n1;
+                    const p1 = params.p1;
+                    const n2 = params.n2;
+                    const p2 = params.p2;
+                    
+                    const x_b = Array.from({length: Math.max(n1, n2) + 1}, (_, i) => i);
+                    data = [
+                        {
+                            x: x_b,
+                            y: x_b.map(k => k <= n1 ? binomialPMF(n1, p1, k) : 0),
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            name: `二项分布1 (n=${n1}, p=${p1})`
+                        },
+                        {
+                            x: x_b,
+                            y: x_b.map(k => k <= n2 ? binomialPMF(n2, p2, k) : 0),
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            name: `二项分布2 (n=${n2}, p=${p2})`
+                        }
+                    ];
+                    layout.title = '二项分布对比';
+                    break;
+
+                case 'poisson':
+                    const lambda1 = params.lambda1;
+                    const lambda2 = params.lambda2;
+                    
+                    const maxX = Math.ceil(Math.max(lambda1, lambda2) * 3);
+                    const x_p = Array.from({length: maxX + 1}, (_, i) => i);
+                    data = [
+                        {
+                            x: x_p,
+                            y: x_p.map(k => poissonPMF(lambda1, k)),
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            name: `泊松分布1 (λ=${lambda1})`
+                        },
+                        {
+                            x: x_p,
+                            y: x_p.map(k => poissonPMF(lambda2, k)),
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            name: `泊松分布2 (λ=${lambda2})`
+                        }
+                    ];
+                    layout.title = '泊松分布对比';
+                    break;
+
+                case 'geometric':
+                    const pg1 = params.p1;
+                    const pg2 = params.p2;
+                    
+                    const x_g = Array.from({length: Math.ceil(20/Math.min(pg1, pg2))}, (_, i) => i + 1);
+                    data = [
+                        {
+                            x: x_g,
+                            y: x_g.map(k => geometricPMF(pg1, k)),
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            name: `几何分布1 (p=${pg1})`
+                        },
+                        {
+                            x: x_g,
+                            y: x_g.map(k => geometricPMF(pg2, k)),
+                            type: 'scatter',
+                            mode: 'lines+markers',
+                            name: `几何分布2 (p=${pg2})`
+                        }
+                    ];
+                    layout.title = '几何分布对比';
+                    break;
+            }
+
+            Plotly.newPlot('plotDiv', data, layout);
+        }
+
+        // 修改分布选择事件监听器
+        document.getElementById('distributionSelect').addEventListener('change', function() {
+            const distribution = this.value;
+            generateParameters(distribution);
+            updatePlot();
+        });
+
+        // 添加 gamma 函数的实现
+        function gamma(z) {
+            if (z < 0.5) {
+                return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z));
+            }
+            
+            z = z - 1;
+            let x = 0.99999999999980993;
+            const p = [
+                676.5203681218851,
+                -1259.1392167224028,
+                771.32342877765313,
+                -176.61502916214059,
+                12.507343278686905,
+                -0.13857109526572012,
+                9.9843695780195716e-6,
+                1.5056327351493116e-7
+            ];
+            
+            for (let i = 0; i < p.length; i++) {
+                x += p[i] / (z + i + 1);
+            }
+            
+            const t = z + p.length - 0.5;
+            return Math.sqrt(2 * Math.PI) * Math.pow(t, z + 0.5) * Math.exp(-t) * x;
+        }
+
+        // 添加 beta 函数实现
+        function beta(x, y) {
+            return gamma(x) * gamma(y) / gamma(x + y);
+        }
+
+        // 添加概率质量函数的实现
+        function binomialPMF(n, p, k) {
+            if (k > n) return 0;
+            return combinations(n, k) * Math.pow(p, k) * Math.pow(1 - p, n - k);
+        }
+
+        function poissonPMF(lambda, k) {
+            return Math.exp(-lambda) * Math.pow(lambda, k) / factorial(k);
+        }
+
+        function geometricPMF(p, k) {
+            return p * Math.pow(1 - p, k - 1);
+        }
+
+        // 辅助函数
+        function combinations(n, k) {
+            return factorial(n) / (factorial(k) * factorial(n - k));
+        }
+
+        function factorial(n) {
+            if (n === 0 || n === 1) return 1;
+            let result = 1;
+            for (let i = 2; i <= n; i++) result *= i;
+            return result;
+        }
+
+        // 添加参数值更新函数
+        function updateParamValue(paramId, value) {
+            document.getElementById(`${paramId}-value`).textContent = value;
+        }
+
+        // 初始加载
+        generateParameters('normal');
+        updatePlot();
+    </script>
+</body>
+</html> 
